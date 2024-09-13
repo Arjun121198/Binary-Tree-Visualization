@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Tree Visualization</title>
+    <style>
+        svg {
+            display: block;
+            margin: 0 auto;
+            width: 100%;
+            height: 500px;
+            border: 1px solid black;
+        }
+        select, input {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<h1 style="text-align: center;">Binary Tree Visualization</h1>
+
+<div style="text-align: center;">
+    <select id="parentDropdown" onchange="toggleChildInputs()">
+        <option value="">Select Parent Node</option>
+    </select>
+    <input type="number" id="leftChildValueInput" placeholder="Enter Left Child Number" disabled>
+    <input type="number" id="rightChildValueInput" placeholder="Enter Right Child Number" disabled>
+    <button onclick="insertChildren()">Insert Child Nodes</button>
+    <button onclick="clearData()">Clear Data</button> <!-- Clear Data Button -->
+</div>
+
+<svg id="binaryTree"></svg>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+    // Define Binary Tree Node
+    class TreeNode {
+        constructor(value) {
+            this.value = value;
+            this.left = null;
+            this.right = null;
+        }
+    }
+
+    // Binary Tree Class
+    class BinaryTree {
+        constructor() {
+            // Load tree from localStorage if available, otherwise start with a root node
+            const savedTree = JSON.parse(localStorage.getItem('binaryTree'));
+            this.root = savedTree ? this.rebuildTree(savedTree) : new TreeNode(1);
+            this.updateTree();
+            this.populateDropdown();  // Populate the dropdown initially
+        }
+
+        // Rebuild tree from saved data (for restoring from local storage)
+        rebuildTree(data) {
+            if (!data) return null;
+            const node = new TreeNode(data.value);
+            node.left = this.rebuildTree(data.left);
+            node.right = this.rebuildTree(data.right);
+            return node;
+        }
+
+        // Insert child nodes (left and/or right) under a parent
+        insertChildren(parentValue, leftChildValue, rightChildValue) {
+            const parentNode = this.findNode(this.root, parentValue);
+            if (parentNode !== null) {
+                // Check for duplicate left child
+                if (!isNaN(leftChildValue)) {
+                    if (this.findNode(this.root, leftChildValue) === null) {
+                        if (parentNode.left === null) {
+                            parentNode.left = new TreeNode(leftChildValue);
+                        } else {
+                            alert("Left child already exists!");
+                        }
+                    } else {
+                        alert("A node with this value already exists in the tree!");
+                    }
+                }
+
+                // Check for duplicate right child
+                if (!isNaN(rightChildValue)) {
+                    if (this.findNode(this.root, rightChildValue) === null) {
+                        if (parentNode.right === null) {
+                            parentNode.right = new TreeNode(rightChildValue);
+                        } else {
+                            alert("Right child already exists!");
+                        }
+                    } else {
+                        alert("A node with this value already exists in the tree!");
+                    }
+                }
+
+                this.updateTree();
+                this.populateDropdown();  // Update the dropdown with the new nodes
+                this.saveTree();  // Save tree to local storage
+            } else {
+                alert("Parent node not found!");
+            }
+        }
+
+        // Save the tree to local storage
+        saveTree() {
+            localStorage.setItem('binaryTree', JSON.stringify(this.root));
+        }
+
+        // Clear the tree and local storage
+        clearTree() {
+            this.root = new TreeNode(1);  // Reset to root node only
+            localStorage.removeItem('binaryTree');
+            this.updateTree();
+            this.populateDropdown();
+        }
+
+        // Find node by value (search all nodes)
+        findNode(node, value) {
+            if (node === null) return null;
+            if (node.value === value) return node;
+            return this.findNode(node.left, value) || this.findNode(node.right, value);
+        }
+
+        // Convert Tree into Hierarchical Data
+        buildTreeData(node) {
+            if (!node) return null;
+            return {
+                name: node.value,
+                children: [
+                    this.buildTreeData(node.left),
+                    this.buildTreeData(node.right)
+                ].filter(Boolean)  // Remove null children
+            };
+        }
+
+        // Visualization
+        updateTree() {
+            const treeData = this.buildTreeData(this.root);
+            drawBinaryTree(treeData);
+        }
+
+        // Populate dropdown with all tree nodes
+        populateDropdown() {
+            const dropdown = document.getElementById('parentDropdown');
+            dropdown.innerHTML = '<option value="">Select Parent Node</option>';  // Reset options
+            this._populateDropdownRecursive(this.root, dropdown);
+        }
+
+        _populateDropdownRecursive(node, dropdown) {
+            if (node !== null) {
+                const option = document.createElement('option');
+                option.value = node.value;
+                option.text = `Node ${node.value}`;
+                dropdown.appendChild(option);
+                this._populateDropdownRecursive(node.left, dropdown);
+                this._populateDropdownRecursive(node.right, dropdown);
+            }
+        }
+    }
+
+    // Create the binary tree object
+    const binaryTree = new BinaryTree();
+
+    // Insert Children Function called by Button
+    function insertChildren() {
+        const parentValue = parseInt(document.getElementById('parentDropdown').value);
+        const leftChildValue = parseInt(document.getElementById('leftChildValueInput').value);
+        const rightChildValue = parseInt(document.getElementById('rightChildValueInput').value);
+
+        if (!isNaN(parentValue)) {
+            binaryTree.insertChildren(parentValue, leftChildValue, rightChildValue);
+        } else {
+            alert("Please select a parent node and enter valid child numbers!");
+        }
+
+        document.getElementById('leftChildValueInput').value = '';  // Clear left child input
+        document.getElementById('rightChildValueInput').value = '';  // Clear right child input
+        document.getElementById('parentDropdown').value = '';  // Reset dropdown
+        toggleChildInputs();  // Disable child inputs after insertion
+    }
+
+    // Clear tree and local storage
+    function clearData() {
+        binaryTree.clearTree();
+    }
+
+    // Enable/Disable child inputs based on parent selection
+    function toggleChildInputs() {
+        const parentValue = document.getElementById('parentDropdown').value;
+        const leftChildInput = document.getElementById('leftChildValueInput');
+        const rightChildInput = document.getElementById('rightChildValueInput');
+        const isEnabled = (parentValue !== "");
+        leftChildInput.disabled = !isEnabled;
+        rightChildInput.disabled = !isEnabled;
+    }
+
+    // D3.js Visualization Function
+    function drawBinaryTree(data) {
+        console.log(data);
+        const svg = d3.select("svg");
+        svg.selectAll("*").remove();  // Clear the SVG before drawing
+
+        const margin = {top: 40, right: 90, bottom: 50, left: 90},
+              width = +svg.node().clientWidth - margin.left - margin.right,
+              height = +svg.node().clientHeight - margin.top - margin.bottom;
+
+        const g = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tree = d3.tree()
+            .size([width, height]);
+
+        const root = d3.hierarchy(data);
+
+        tree(root);
+
+        // Create Links
+        const link = g.selectAll(".link")
+            .data(root.descendants().slice(1))
+            .enter().append("path")
+            .attr("class", "link")
+            .attr("d", d => `
+                M${d.x},${d.y}
+                C${d.x},${(d.y + d.parent.y) / 2}
+                 ${d.parent.x},${(d.y + d.parent.y) / 2}
+                 ${d.parent.x},${d.parent.y}
+            `)
+            .style("fill", "none")
+            .style("stroke", "#ccc")
+            .style("stroke-width", 2);
+
+        // Create Nodes
+        const node = g.selectAll(".node")
+            .data(root.descendants())
+            .enter().append("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.x},${d.y})`);
+
+        node.append("circle")
+            .attr("r", 10)
+            .style("fill", "#69b3a2");
+
+        node.append("text")
+            .attr("dy", ".35em")
+            .attr("y", d => d.children ? -20 : 20)
+            .style("text-anchor", "middle")
+            .text(d => d.data.name);
+
+        // Center the whole tree horizontally by adjusting the g element's position
+        const bounds = g.node().getBBox();
+        const gOffsetX = (width - bounds.width) / 2 - bounds.x;
+        const gOffsetY = (height - bounds.height) / 2 - bounds.y;
+        g.attr("transform", `translate(${gOffsetX},${gOffsetY})`);
+    }
+
+</script>
+</body>
+</html>
